@@ -1,18 +1,35 @@
 const { User } = require('../models')
 
+const jwt = require('jsonwebtoken')
+
 const Validator = require("fastest-validator");
 
 const v = new Validator();
+
+const bcrypt = require('bcrypt');
+
+require('dotenv').config();
+const {JWT_SECRET} = process.env
+
 
 // CREATE USER (SIGNUP)
 const signup = async (req, res, next) => {
     let {username, email, fullname, password, image, bio}= req.body
     // res.render('index', {title: 'Sign Up User'})
+
+    // bcrypt.genSalt(10, function (err, salt) {
+    //     bcrypt.hash(password, salt, function (err, hash) {
+            
+    //     })
+    // })
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     const data = {
         username,
         email,
         fullname,
-        password,
+        password : hashedPassword,
         bio,
         image,
         createdAt : new Date(),
@@ -26,7 +43,7 @@ const signup = async (req, res, next) => {
     const schema = {
         username : {type: 'string', min: 5, max:50, optional: false },
         email : {type:"email", optional: false },
-        password : {type: 'string', min: 5, max:50, optional: false },
+        password : {type: 'string', min: 5, max:192, optional: false },
     };
 
   
@@ -239,21 +256,47 @@ const signin = async (req, res, next) => {
             }
         })
 
-        console.log(userData.password);
+        // console.log(userData.password);
+        const validPassword = await bcrypt.compare(password, userData.password, function(err, result){
+           
+
+            if (result) {
+
+                //Pembuatan token saat login
+                const token = jwt.sign({
+                    email : userData.email,
+                    username : userData.username,
+                    user_id : userData.id
+                },JWT_SECRET, function (err, token) {  
+                    return res.status(200).json({
+                        message : 'Success login',
+                        token: token,
+                        data : userData
+                    })      
+                }  )
+          
+            } else {
+                return res.status(401).json({
+                    message : "Wrong Password",
+                    data : err
+                })
+            }
+        });
 
         if (userData) {
             if (userData.isDeleted === false) {
-                if (userData.password === password) {
-                    return res.status(200).json({
-                        message: 'Success',
-                        data : userData
-                    })
-                } else {
-                    return res.status(400).json({
-                        message : 'Wrong Password',
-                        data : userData
-                    })
-                }
+                validPassword
+                // if (userData.password === password) {
+                //     return res.status(200).json({
+                //         message: 'Success',
+                //         data : userData
+                //     })
+                // } else {
+                //     return res.status(400).json({
+                //         message : 'Wrong Password',
+                //         data : userData
+                //     })
+                // }
             } else {
                 return res.status(401).json({
                     message : 'User has been deleted',
